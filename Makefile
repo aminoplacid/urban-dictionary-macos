@@ -23,7 +23,15 @@ export DICT_DEV_KIT_OBJ_DIR
 
 DESTINATION_FOLDER = $(HOME)/Library/Dictionaries
 
-.PHONY: all xml dict install uninstall clean test
+.PHONY: all xml dict install uninstall clean test saver install-saver uninstall-saver
+
+# ---- Screen saver (Command Line Tools only; no Xcode) ----------------------
+SAVER_LIMIT   ?= 5000
+SAVER_BUNDLE   = build/UrbanWordOfTheDay.saver
+SAVER_BIN      = $(SAVER_BUNDLE)/Contents/MacOS/UrbanWordOfTheDay
+SAVER_JSON     = build/words.json
+SAVER_DEST     = $(HOME)/Library/Screen Savers/Urban Word of the Day.saver
+SAVER_ARCHS   ?= -arch arm64 -arch x86_64
 
 all: dict
 
@@ -49,6 +57,32 @@ install:
 
 uninstall:
 	rm -rf "$(DESTINATION_FOLDER)/Urban Dictionary.dictionary"
+
+$(SAVER_JSON): ud2dict.py $(INPUT)
+	@test -n "$(INPUT)" || { echo "No input. Put a dump in data/ or pass INPUT=path"; exit 1; }
+	$(PYTHON) ud2dict.py $(INPUT) --saver-json $@ --saver-limit $(SAVER_LIMIT) $(FILTER)
+
+$(SAVER_BIN): saver/UDWordOfTheDayView.m
+	mkdir -p $(dir $@)
+	clang -fobjc-arc -fmodules -bundle $(SAVER_ARCHS) -mmacosx-version-min=11.0 \
+	  -framework Cocoa -framework ScreenSaver -o $@ $<
+
+saver: $(SAVER_BIN) $(SAVER_JSON) saver/Info.plist
+	mkdir -p $(SAVER_BUNDLE)/Contents/Resources
+	cp saver/Info.plist $(SAVER_BUNDLE)/Contents/Info.plist
+	cp $(SAVER_JSON) $(SAVER_BUNDLE)/Contents/Resources/words.json
+	codesign --force --sign - $(SAVER_BUNDLE)
+	@echo "Built $(SAVER_BUNDLE). Run 'make install-saver'."
+
+install-saver: saver
+	mkdir -p "$(HOME)/Library/Screen Savers"
+	rm -rf "$(SAVER_DEST)"
+	ditto "$(SAVER_BUNDLE)" "$(SAVER_DEST)"
+	-killall legacyScreenSaver 2>/dev/null
+	@echo "Installed. Open System Preferences > Desktop & Screen Saver and pick 'Urban Word of the Day'."
+
+uninstall-saver:
+	rm -rf "$(SAVER_DEST)"
 
 test:
 	$(PYTHON) -m unittest discover -s tests -v

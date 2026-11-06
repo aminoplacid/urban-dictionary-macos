@@ -63,6 +63,23 @@ class ConvertTests(unittest.TestCase):
         ET.parse(out)
         out.unlink()
 
+    def test_saver_json(self):
+        import json
+        sel, _, _ = build()
+        out = ROOT / "build" / "test_words.json"
+        n = ud2dict.write_saver_json(sel, out, limit=2)
+        words = json.loads(out.read_text(encoding="utf-8"))
+        out.unlink()
+        self.assertEqual(n, 2)
+        self.assertEqual({w["w"] for w in words}, {"yeet", "skrrt"})  # top 2 by score
+        yeet = next(w for w in words if w["w"] == "yeet")
+        self.assertNotIn("[", yeet["d"])  # link brackets stripped
+        self.assertEqual(yeet["u"], 900)
+
+    def test_plain_truncates_on_word_boundary(self):
+        s = ud2dict._plain("one two three four five", 12)
+        self.assertEqual(s, "one two…")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -306,6 +306,32 @@ def write_xml(selected: dict[str, list[Definition]], out, *, show_author: bool) 
     return len(selected)
 
 
+def _plain(text: str, limit: int) -> str:
+    """Flatten for the screen saver: drop [link] brackets, collapse whitespace, truncate."""
+    text = _BRACKET_LINK.sub(r"\1", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) <= limit:
+        return text
+    cut = text[:limit].rsplit(" ", 1)[0].rstrip(",;:-–— ")
+    return cut + "…"
+
+
+def write_saver_json(selected: dict[str, list[Definition]], path: Path, *, limit: int) -> int:
+    """Write the best-scoring headwords (top definition each) for the screen saver."""
+    ranked = sorted(selected, key=lambda k: selected[k][0].score, reverse=True)[:limit]
+    words = []
+    for key in sorted(ranked):
+        best = selected[key][0]
+        item = {"w": display_word(selected[key]), "d": _plain(best.definition, 420), "u": best.up}
+        if best.example:
+            item["e"] = _plain(best.example, 200)
+        words.append(item)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as fh:
+        json.dump(words, fh, ensure_ascii=False, separators=(",", ":"))
+    return len(words)
+
+
 # --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #
@@ -313,7 +339,11 @@ def write_xml(selected: dict[str, list[Definition]], out, *, show_author: bool) 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("inputs", nargs="+", type=Path, help="CSV / JSON / JSONL dump file(s)")
-    p.add_argument("-o", "--output", type=Path, required=True, help="output XML path")
+    p.add_argument("-o", "--output", type=Path, help="output DDK XML path")
+    p.add_argument("--saver-json", type=Path,
+                   help="also write a word list for the screen saver to this path")
+    p.add_argument("--saver-limit", type=int, default=5000,
+                   help="headwords in the screen-saver list, best first (default 5000)")
     p.add_argument("--min-up", type=int, default=50, help="minimum upvotes (default 50)")
     p.add_argument("--min-ratio", type=float, default=0.6,
                    help="minimum up/(up+down) ratio (default 0.6)")
@@ -329,6 +359,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    if not args.output and not args.saver_json:
+        print("error: give -o/--output and/or --saver-json", file=sys.stderr)
+        return 2
     for path in args.inputs:
         if not path.is_file():
             print(f"error: {path} not found", file=sys.stderr)
@@ -349,17 +382,20 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 1
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    with args.output.open("w", encoding="utf-8") as out:
-        n = write_xml(selected, out, show_author=not args.no_author)
-
     print(
         f"rows read: {stats['rows']:,}  malformed: {stats['malformed']:,}  "
         f"below vote threshold: {stats['rejected_votes']:,}  "
-        f"over-long words: {stats['rejected_long_word']:,}\n"
-        f"headwords written: {n:,}  ->  {args.output}",
+        f"over-long words: {stats['rejected_long_word']:,}",
         file=sys.stderr,
     )
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        with args.output.open("w", encoding="utf-8") as out:
+            n = write_xml(selected, out, show_author=not args.no_author)
+        print(f"headwords written: {n:,}  ->  {args.output}", file=sys.stderr)
+    if args.saver_json:
+        n = write_saver_json(selected, args.saver_json, limit=args.saver_limit)
+        print(f"screen-saver words: {n:,}  ->  {args.saver_json}", file=sys.stderr)
     return 0
 
 
