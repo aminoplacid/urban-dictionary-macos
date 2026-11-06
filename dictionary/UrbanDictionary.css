@@ -1,0 +1,19 @@
+@charset "UTF-8";
+@namespace d url(http://www.apple.com/DTDs/DictionaryService-1.0.rng);
+
+d|entry { font-family: -apple-system, "Helvetica Neue", sans-serif; }
+
+h1.headword { font-size: 150%; font-weight: 600; margin: 0 0 0.4em; }
+
+ol.defs { padding-left: 1.4em; margin: 0; }
+li.def { margin-bottom: 0.9em; }
+li.def p { margin: 0 0 0.3em; }
+
+.example { font-style: italic; color: -apple-system-secondary-label; margin-left: 0.5em; border-left: 2px solid #ccc; padding-left: 0.6em; }
+.meta { font-size: 80%; color: -apple-system-tertiary-label; margin-top: 0.2em; }
+.meta span + span::before { content: " · "; }
+
+a { color: -apple-system-blue; text-decoration: none; }
+
+/* Dictionary.app panel vs. the compact Look Up popover */
+html.apple_client-panel .meta { display: none; }

@@ -1,0 +1,7 @@
+# Urban Dictionary content is copyrighted — never commit data or builds.
+data/*
+!data/.gitkeep
+build/
+*.dictionary
+__pycache__/
+.DS_Store
